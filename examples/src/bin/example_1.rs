@@ -30,14 +30,20 @@ use {defmt_rtt as _, panic_probe as _};
 type Display<'d> = MAX7219LedMat<ExclusiveDevice<Spi<'d, SPI1, Async>, Output<'d, PIN_9>>, 256, 4>;
 type DisplayError = Error<ExclusiveDeviceError<embassy_rp::spi::Error, Infallible>>;
 
-async fn test<'a>(display: &mut Display<'a>) -> Result<(), DisplayError> {
+#[derive(Debug)]
+pub enum AppError {
+    DisplayErr(DisplayError),
+    DrawingErr(Infallible),
+}
+
+async fn test<'a>(display: &mut Display<'a>) -> Result<(), AppError> {
     let txtstyle = MonoTextStyle::new(&FONT_5X7, BinaryColor::On);
 
     loop {
         Text::new("Test", Point::new(2, 6), txtstyle)
             .draw(display)
             .unwrap();
-        display.flush().await?;
+        display.flush().await.map_err(AppError::DisplayErr)?;
 
         Timer::after(Duration::from_secs(2)).await;
         display.clear();
@@ -45,14 +51,14 @@ async fn test<'a>(display: &mut Display<'a>) -> Result<(), DisplayError> {
         Line::new(Point::new(0, 0), Point::new(31, 7))
             .into_styled(PrimitiveStyle::with_stroke(BinaryColor::On, 1))
             .draw(display)
-            .unwrap();
+            .map_err(AppError::DrawingErr)?;
 
         Line::new(Point::new(31, 0), Point::new(0, 7))
             .into_styled(PrimitiveStyle::with_stroke(BinaryColor::On, 1))
             .draw(display)
-            .unwrap();
+            .map_err(AppError::DrawingErr)?;
 
-        display.flush().await?;
+        display.flush().await.map_err(AppError::DisplayErr)?;
 
         Timer::after(Duration::from_secs(2)).await;
         display.clear();
